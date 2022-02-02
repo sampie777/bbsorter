@@ -30,7 +30,6 @@ unsigned long lastPosChange = 0;
 int posOffset = 0;
 
 void changePos(int value) {
-    static bool firstChange = true;
     static int prevValue = 0;
 
     if (value == prevValue) {
