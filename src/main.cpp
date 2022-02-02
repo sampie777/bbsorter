@@ -1,36 +1,32 @@
 #include <Arduino.h>
 #include <Servo.h>
 
-Servo myservo;
+Servo servo;
 
 #define SERVO_PIN 9
 #define SENSOR_PIN A0
 #define CENTER (90+3)
 #define LEFT (CENTER+35)
 #define RIGHT (CENTER-35)
+#define MAX_OFFSET_POSITION 3
 
 #define LEFT_MIN_SENS 250
 #define LEFT_MAX_SENS 450 // 400 + slack
 #define RIGHT_MIN_SENS 550 // 600 - slack
 #define RIGHT_MAX_SENS 700
-// activated left: 262
-// activated right: 212
-// centered empty: 246
-#define MAX_OFFSET_POSITION 4
 
 #define SENSOR_AVERAGE_COUNT 20
 #define LOOP_DELAY 5
 
 int pos = 0;    // variable to store the servo position
-int prevPos = 0;
 bool printSensorValue = false;
-int totalLeft = 0;
-int totalRight = 0;
 unsigned long lastPosChange = 0;
 int posOffset = 0;
 
 void changePos(int value) {
     static int prevValue = 0;
+    static int totalLeft = 0;
+    static int totalRight = 0;
 
     if (value == prevValue) {
         if (pos != value) {
@@ -59,28 +55,17 @@ void changePos(int value) {
 
 void handleInactive() {
     static int direction = 1;
-    static unsigned long lastOffsetChange = 0;
-    if (lastPosChange + 500 > millis()) {
+    if (lastPosChange + SENSOR_AVERAGE_COUNT * LOOP_DELAY * 5 > millis()) {
         return;
     }
-//
-//    if (lastOffsetChange + 3 * SENSOR_AVERAGE_COUNT * LOOP_DELAY > millis()) {
-//        return;
-//    }
-//    lastOffsetChange = millis();
-//
-//    posOffset += direction;
-//    if (posOffset >= MAX_OFFSET_POSITION || posOffset <= -1 * MAX_OFFSET_POSITION) {
-//        direction *= -1;
-//    }
 
-    myservo.write(CENTER + 5);
+    servo.write(CENTER + 5);
     delay(50);
-    myservo.write(CENTER - 5);
+    servo.write(CENTER - 5);
     delay(50);
 
-    changePos(CENTER + 3 * direction);
-    changePos(CENTER + 3 * direction);
+    changePos(CENTER + MAX_OFFSET_POSITION * direction);
+    changePos(CENTER + MAX_OFFSET_POSITION * direction);
     direction *= -1;
 }
 
@@ -142,6 +127,7 @@ void handleSerial() {
         return;
     }
 
+    // Check for numeric values to create a numeric position
     if (input >= 48 && input <= 58) {
         buf[bufIndex++] = input - 48;
     } else if (!(bufIndex > 0 && bufIndex <= 3)) {
@@ -152,6 +138,7 @@ void handleSerial() {
     Serial.print(bufIndex);
     Serial.print(" buff: ");
 
+    // Convert buffer to a numeric position
     if (bufIndex == 1) {
         pos = buf[0];
         Serial.print(buf[0]);
@@ -180,19 +167,22 @@ void handleSerial() {
 
 void setup() {
     Serial.begin(115200);
-    myservo.attach(SERVO_PIN);  // attaches the servo on pin 9 to the servo object
+    servo.attach(SERVO_PIN);  // attaches the servo on pin 9 to the servo object
     pinMode(SENSOR_PIN, INPUT);
     pos = CENTER;
     Serial.println("Ready");
 }
 
 void loop() {
+    static int prevPos = 0;
+
     handleSensor();
     handleInactive();
     handleSerial();
 
-    myservo.write(pos + posOffset);
+    servo.write(pos + posOffset);
 
+    // Add extra delay for the servo to get into the new position
     if (pos != prevPos) {
         delay(10);
         prevPos = pos;
